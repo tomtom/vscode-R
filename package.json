@@ -551,6 +551,11 @@
         "icon": "$(sync-ignored)"
       },
       {
+        "title": "Load Params from YAML Metadata",
+        "category": "R Markdown",
+        "command": "r.rmarkdown.loadParams"
+      },
+      {
         "title": "Launch RStudio Addin",
         "category": "R",
         "command": "r.launchAddinPicker"
@@ -1456,6 +1461,11 @@
           "markdownDescription": "What working directory should R Markdown chunks be evaluated in? Default knit behaviour is to use the document's directory as root.\n\nRequires `#r.rmarkdown.knit.useBackgroundProcess#` to be set to `true`.",
           "additionalItems": false,
           "additionalProperties": false
+        },
+        "r.rmarkdown.params.autoLoad": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Automatically evaluate the `params` block from an Rmd file's YAML metadata and assign it to `params` in the R terminal whenever the file is focused. Can also be triggered manually via `R Markdown: Load Params from YAML Metadata`."
         },
         "r.helpPanel.enableSyntaxHighlighting": {
           "type": "boolean",

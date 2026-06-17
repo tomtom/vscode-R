@@ -13,3 +13,13 @@ tmp.*
 temp.*
 tmp
 temp
+
+# Claude Code ctags index
+.claude/tags
+
+.editorconfig
+.prettierignore
+.prettierrc
+src/test/suite/rmdParamsAutoLoad.test.ts
+html/
+

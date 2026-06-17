@@ -110,6 +110,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<apiImp
         'r.rmarkdown.preview.toggleStyle': () => rmdPreviewManager?.toggleTheme(),
         'r.rmarkdown.preview.enableAutoRefresh': () => rmdPreviewManager?.enableAutoRefresh(),
         'r.rmarkdown.preview.disableAutoRefresh': () => rmdPreviewManager?.disableAutoRefresh(),
+        'r.rmarkdown.loadParams': () => rTerminal.loadRmdParams(),
 
         // file creation (under file submenu)
         'r.rmarkdown.newFileDraft': () => rmarkdown.newDraft(),
@@ -158,6 +159,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<apiImp
     // keep track of terminals
     context.subscriptions.push(vscode.window.onDidCloseTerminal(rTerminal.deleteTerminal));
     context.subscriptions.push(vscode.window.onDidChangeActiveTerminal(session.switchSessionByTerminal));
+
+    // automatically load Rmd params into the R terminal when an Rmd file is focused
+    context.subscriptions.push(
+        vscode.window.onDidChangeActiveTextEditor(rTerminal.autoLoadRmdParams),
+        vscode.window.onDidChangeWindowState(state => {
+            if (state.focused) {
+                rTerminal.autoLoadRmdParams(vscode.window.activeTextEditor);
+            }
+        }),
+    );
+    rTerminal.autoLoadRmdParams(vscode.window.activeTextEditor);
 
     // start language service
     if (util.config().get<boolean>('lsp.enabled')) {

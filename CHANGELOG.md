@@ -12,6 +12,7 @@
 * feat(sess): migrate session watcher to WebSockets/JSON-RPC 2.0
 * feat: implement rstudioapi::showPrompt() and rstudioapi::askForPassword() for sess package
 * feat: evaluate params from YAML header in Rmd files before running code
+* feat(rmarkdown): automatically load YAML `params` into the R terminal when an Rmd file is focused, plus a manual "Load Params from YAML Metadata" command
 * feat: check sess package version and prompt for update
 * feat(session): implement file-based reconnection and suppress verbose logs
 

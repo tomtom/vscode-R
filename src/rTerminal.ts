@@ -52,21 +52,12 @@ function valueToR(val: unknown): string {
     return `list(${entries.join(', ')})`;
 }
 
-export function getRmdParamsCommand(document: vscode.TextDocument): string | undefined {
-    if (document.languageId !== 'rmd') {
-        return undefined;
-    }
+function parseRmdParamsCommand(document: vscode.TextDocument): string | undefined {
     const text = document.getText();
     const match = text.match(/^---\s*\n([\s\S]*?)\n---/);
     if (!match || !/^\s*params\s*:/m.test(match[1])) {
         return undefined;
     }
-    const filePath = document.uri.fsPath;
-    if (filePath === lastParamsRmdPath && document.version === lastParamsRmdVersion) {
-        return undefined;
-    }
-    lastParamsRmdPath = filePath;
-    lastParamsRmdVersion = document.version;
     try {
         const frontmatter = yaml.load(match[1], { schema: RMARKDOWN_SCHEMA }) as Record<string, unknown>;
         const params = frontmatter?.['params'] as Record<string, unknown> | undefined;
@@ -78,6 +69,112 @@ export function getRmdParamsCommand(document: vscode.TextDocument): string | und
     } catch {
         return undefined;
     }
+}
+
+export function getRmdParamsCommand(document: vscode.TextDocument): string | undefined {
+    if (document.languageId !== 'rmd') {
+        return undefined;
+    }
+    const filePath = document.uri.fsPath;
+    if (filePath === lastParamsRmdPath && document.version === lastParamsRmdVersion) {
+        return undefined;
+    }
+    lastParamsRmdPath = filePath;
+    lastParamsRmdVersion = document.version;
+    return parseRmdParamsCommand(document);
+}
+
+/** Terminal names recognised as R interactive sessions. */
+const R_TERMINAL_NAMES = ['R', 'R Interactive'];
+
+/**
+ * Finds an existing R terminal without creating a new one, preferring the
+ * active terminal if it is an R terminal.
+ */
+function findActiveRTerminal(): vscode.Terminal | undefined {
+    const active = vscode.window.activeTerminal;
+    if (active && R_TERMINAL_NAMES.includes(active.name)) {
+        return active;
+    }
+    return vscode.window.terminals
+        .slice()
+        .reverse()
+        .find(term => R_TERMINAL_NAMES.includes(term.name));
+}
+
+/**
+ * Per-terminal cache of the last params command injected for a given file,
+ * so refocusing a window/editor doesn't resend unchanged params.
+ */
+const lastInjectedParams = new WeakMap<vscode.Terminal, Map<string, string>>();
+
+function shouldInjectParams(terminal: vscode.Terminal, fsPath: string, cmd: string): boolean {
+    let fileMap = lastInjectedParams.get(terminal);
+    if (!fileMap) {
+        fileMap = new Map<string, string>();
+        lastInjectedParams.set(terminal, fileMap);
+    }
+    if (fileMap.get(fsPath) === cmd) {
+        return false;
+    }
+    fileMap.set(fsPath, cmd);
+    return true;
+}
+
+/**
+ * Core params-injection logic shared by the automatic editor-focus handler
+ * and the manual command. When `manual` is true, the change-detection cache
+ * is bypassed (params are always (re-)sent) and failures are reported via
+ * info messages.
+ */
+function injectRmdParams(editor: vscode.TextEditor | undefined, manual: boolean): void {
+    if (!editor) {
+        return;
+    }
+    if (!manual && !config().get<boolean>('rmarkdown.params.autoLoad', true)) {
+        return;
+    }
+    const doc = editor.document;
+    if (doc.languageId !== 'rmd') {
+        return;
+    }
+    const cmd = parseRmdParamsCommand(doc);
+    if (!cmd) {
+        if (manual) {
+            void vscode.window.showInformationMessage('No params found in YAML metadata.');
+        }
+        return;
+    }
+    const terminal = findActiveRTerminal();
+    if (!terminal) {
+        if (manual) {
+            void vscode.window.showInformationMessage('No R terminal found. Please open an R terminal first.');
+        }
+        return;
+    }
+    if (!manual && !shouldInjectParams(terminal, doc.uri.fsPath, cmd)) {
+        return;
+    }
+    if (manual) {
+        shouldInjectParams(terminal, doc.uri.fsPath, cmd); // keep cache in sync
+    }
+    terminal.sendText(cmd);
+}
+
+/** Manually (re-)loads params from YAML metadata into the active R terminal. */
+export function loadRmdParams(): void {
+    injectRmdParams(vscode.window.activeTextEditor, true);
+}
+
+/**
+ * Automatically injects RMarkdown params into an R terminal when an Rmd file
+ * becomes the active editor, provided the VS Code window has focus.
+ */
+export function autoLoadRmdParams(editor: vscode.TextEditor | undefined): void {
+    if (!vscode.window.state.focused) {
+        return;
+    }
+    injectRmdParams(editor, false);
 }
 
 export async function runSource(echo: boolean): Promise<void>  {
